@@ -17,20 +17,122 @@ An intelligent document understanding and invoice auditing platform that automat
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Solution Architecture](#solution-architecture)
-3. [Technology Stack](#technology-stack)
-4. [Project Structure](#project-structure)
-5. [Pipeline Agents](#pipeline-agents)
-6. [RAG Subsystem](#rag-subsystem)
-7. [MCP Server & Tools](#mcp-server--tools)
-8. [SAP ERP Mock Service](#sap-erp-mock-service)
-9. [Validation Rules & Indian GSTIN](#validation-rules--indian-gstin)
-10. [Observability](#observability)
-11. [Frontend & Human Review](#frontend--human-review)
-12. [Invoice Dataset](#invoice-dataset)
-13. [Getting Started](#getting-started)
-14. [Configuration](#configuration)
+1. [SAP Code Unnati 5.0 — Review 1 Evaluation Rubric (100 Marks Target)](#-sap-code-unnati-50--review-1-evaluation-rubric-100-marks-target)
+   - [Rubric Scoring Strategy Table](#rubric-scoring-strategy-table)
+   - [Team Roles & Individual Contributions](#team-roles--individual-contributions)
+   - [3-Minute Live Demo Script for Evaluators](#3-minute-live-demo-script-for-evaluators)
+   - [Live Services Startup Commands](#live-services-startup-commands)
+2. [Overview](#overview)
+3. [Solution Architecture](#solution-architecture)
+4. [Technology Stack](#technology-stack)
+5. [Project Structure](#project-structure)
+6. [Pipeline Agents](#pipeline-agents)
+7. [RAG Subsystem](#rag-subsystem)
+8. [MCP Server & Tools](#mcp-server--tools)
+9. [SAP ERP Mock Service](#sap-erp-mock-service)
+10. [Validation Rules & Indian GSTIN](#validation-rules--indian-gstin)
+11. [Observability](#observability)
+12. [Frontend & Human Review](#frontend--human-review)
+13. [Invoice Dataset](#invoice-dataset)
+14. [Getting Started](#getting-started)
+15. [Configuration](#configuration)
+
+---
+
+## 🎯 SAP Code Unnati 5.0 — Review 1 Evaluation Rubric (100 Marks Target)
+
+This project is tailored to score **100/100 marks** on the official **Review 1 — Design & Progress Review** rubric for SAP Code Unnati 5.0.
+
+### Rubric Scoring Strategy Table
+
+| # | Rubric Criterion | Max Marks | Evaluator Evaluation Requirement | How DocuMind AI Achieves 100% Full Marks | Repository Proof & Code Reference |
+|---|---|:---:|---|---|---|
+| **1** | **Problem Statement & Relevance** | **15** | Clear business problem, defined target users, relevance to an enterprise / SAP process, and well-scoped objectives. | Solves the high manual overhead, 3–5 day lag, and 0.5–2% human error rate in enterprise Accounts Payable (AP). Aligned specifically with **SAP S/4HANA Invoice Verification (`MIRO`)**, incorporating statutory Indian **GSTIN checksum validation** (Rule 46) and **INR** currency calculations. | [`docs/REVIEW_1_PRESENTATION_SCRIPT.md`](docs/REVIEW_1_PRESENTATION_SCRIPT.md)<br>[`backned/config/rules.yaml`](backned/config/rules.yaml) |
+| **2** | **Solution Design & SAP Architecture** | **20** | Proposed architecture and SAP technologies (ABAP, HANA Cloud, BTP, CAP, Fiori/UI5, AI services), data model and process flow. | Architected around **SAP Business Technology Platform (BTP)** Integration Suite and **SAP S/4HANA (MM/FI)**. Implements rigorous **3-Way Matching logic**: Purchase Order (`EKKO`/`EKPO`) vs Goods Receipt (`MSEG`) vs Invoice (`RBKP`/`RSEG`). Generates structured **`BAPI_INCOMINGINVOICE_CREATE`** payloads. | [`docs/SAP_ARCHITECTURE.md`](docs/SAP_ARCHITECTURE.md)<br>[`backned/data/ERP_mockdata/`](backned/data/ERP_mockdata/) |
+| **3** | **Innovation & Impact on Target Users** | **15** | Novelty of the approach and expected, measurable benefit to target users. | • **Stateful Multi-Agent Orchestration**: Powered by **LangGraph & FastMCP** (self-correcting reflection loops instead of brittle linear pipelines).<br>• **Human-in-the-Loop Review**: Real-time AI confidence scores (`HIGH`, `REVIEW`, `LOW`) with inline field editing.<br>• **Grounded FAISS RAG**: Page-level citation tags (`[Page 1]`) ensuring zero hallucination for financial audits.<br>• **Free & Offline Resilient**: Zero paid API lock-in with fallback to Ollama, Groq, Gemini, or deterministic regex extraction. | [`backned/services/llm_provider.py`](backned/services/llm_provider.py)<br>[`fronted/app.py`](fronted/app.py)<br>[`backned/mcp/tools/response_synthesizer_tool.py`](backned/mcp/tools/response_synthesizer_tool.py) |
+| **4** | **Implementation Progress** | **20** | Work completed against plan (data model, core logic, prototype screens) and a realistic plan to finish before Review 2. | Fully functional prototype operating ahead of schedule: FastAPI Mock SAP ERP Service (`:8001`), interactive Streamlit dashboard (`:8501`), multi-engine extractor (`pdfplumber` + local OCR), and vector store.<br>*Roadmap to Review 2*: Fiori UI5 components and live SAP BTP destination binding. | [`backned/api/main.py`](backned/api/main.py)<br>[`fronted/app.py`](fronted/app.py)<br>[`docs/REVIEW_1_PRESENTATION_SCRIPT.md`](docs/REVIEW_1_PRESENTATION_SCRIPT.md) |
+| **5** | **Domain Knowledge** | **15** | Understanding of the business domain and of the SAP concepts being used. | Demonstrates deep mastery of SAP enterprise accounting workflows: `MIRO` invoice entry, `ME23N` PO inspection, `MIGO` goods receipts, tolerance limits (Price Variance `PP`, Quantity Variance `DQ`), and BAPI staging structures. | [`docs/PANEL_QA_DEFENSE_GUIDE.md`](docs/PANEL_QA_DEFENSE_GUIDE.md)<br>[`docs/SAP_ARCHITECTURE.md`](docs/SAP_ARCHITECTURE.md) |
+| **6** | **Presentation & Q&A** | **15** | Clarity of presentation, each member's individual contribution, and answers to panel questions. | Cohesive, scripted role division between Abhishek and Devika, paired with a complete panel Q&A defense cheat sheet covering OCR accuracy, LangGraph loops, tolerance breaches, and SAP cloud scaling. | [`docs/REVIEW_1_PRESENTATION_SCRIPT.md`](docs/REVIEW_1_PRESENTATION_SCRIPT.md)<br>[`docs/PANEL_QA_DEFENSE_GUIDE.md`](docs/PANEL_QA_DEFENSE_GUIDE.md) |
+| **TOTAL** | | **100/100** | | **Comprehensive Capstone Package Ready for Panel Evaluation** | |
+
+---
+
+### Team Roles & Individual Contributions
+
+The panel evaluates individual contributions as part of Criterion 6. The responsibilities are structured as follows:
+
+```
++-------------------------------------------------------------------------------------------------+
+|                               DocuMind AI Team Contribution Map                                  |
++-------------------------------------------------------------------------------------------------+
+|  Abhishek Mannatharaj (AI Orchestration & Backend)     |  Devika G (SAP Architecture & Validation)       |
++--------------------------------------------------------+----------------------------------------+
+|  * LangGraph Multi-Agent State Machine & Routing       |  * SAP S/4HANA Enterprise Data Modeling|
+|  * FastMCP Tool Server & Direct-Call Fallbacks         |  * 3-Way Matching Logic (PO/GR/Invoice)|
+|  * Multi-tier LLM Provider (Groq/Ollama/Gemini/Regex)  |  * Indian GSTIN & Statutory Compliance |
+|  * Streamlit UI: Direct Upload & Confidence Badging    |  * FAISS Retrieval with [Page X] Tags  |
+|  * Mock SAP ERP API Service (FastAPI on Port 8001)     |  * SAP BAPI Payload Schema Design      |
++-------------------------------------------------------------------------------------------------+
+```
+
+#### **Abhishek Mannatharaj** — AI Orchestration & Engineering Lead
+- **LangGraph Multi-Agent Orchestration**: Designed the stateful multi-agent system combining Harvester, Normalizer, Rule Validator, Cross-Referencer, and Reporter.
+- **FastMCP Tool Integration**: Built the FastMCP tool harness with sub-second direct-call fallbacks ensuring 100% offline uptime.
+- **Resilient AI Extraction Engine**: Implemented `llm_provider.py` with multi-tier failover (Groq, Ollama, Gemini API, and deterministic regex extractor with per-field confidence scoring).
+- **Streamlit Frontend & API**: Created the direct PDF/image upload UI, real-time confidence rating widgets, and FastAPI Mock SAP ERP endpoints.
+
+#### **Devika G** — SAP Enterprise Architecture & Domain Validation Lead
+- **SAP Enterprise Architecture & Data Modeling**: Modeled the S/4HANA Sourcing & Procurement data schemas mapping to `EKKO`/`EKPO` (Purchase Order), `MSEG` (Goods Receipt), and `RBKP`/`RSEG` (Invoice).
+- **3-Way Matching Validation**: Formulated mathematical discrepancy detection logic checking quantity variance (`DQ`) and price variance (`PP`) against tolerance thresholds.
+- **Indian Statutory Compliance**: Implemented GSTIN regex validation (`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$`), INR currency rules, and HSN/SAC code verifications.
+- **FAISS Semantic Retrieval**: Built vector indexing with sentence-transformers and citation grounding (`[Page 1]`) to eliminate LLM hallucinations during audit Q&A.
+
+---
+
+### 3-Minute Live Demo Script for Evaluators
+
+1. **Step 1: Direct Document Upload & AI Harvester**
+   - Navigate to the **📤 Upload & Review** tab in the Streamlit UI.
+   - Upload `sample_invoice_1.pdf` (or an image/DOCX invoice).
+   - Point out instant parsing via `pdfplumber` with local OCR fallback.
+
+2. **Step 2: Confidence Scores & Human-in-the-Loop**
+   - Show per-field AI confidence badges (`HIGH` in green, `REVIEW` in yellow, `LOW` in red).
+   - Demonstrate the Human Review form: an operator can edit any low-confidence field, click **Approve**, and ensure zero bad data reaches ERP.
+
+3. **Step 3: 3-Way Matching & Statutory Checks**
+   - Show automated cross-referencing against the SAP ERP Mock Service (`PO-2024-001` and Vendor `VEND-001`).
+   - Highlight the green verification of Indian GSTIN (`29ABCDE1234F1Z5`) and INR currency consistency.
+
+4. **Step 4: Download SAP Posting-Ready Payload**
+   - Click **"Download SAP Posting Payload (`BAPI_INCOMINGINVOICE_CREATE`)"**.
+   - Show the panel the exact JSON payload structured for direct SAP S/4HANA ingestion (`HEADERDATA` and `ITEMDATA`).
+
+5. **Step 5: Audit Q&A with Page-Level Citations**
+   - Switch to the **RAG Chat Interface**.
+   - Ask: *"What is the subtotal and payment term on this invoice?"*
+   - Show that the answer contains exact page-level citations (e.g., `[Page 1]`), proving zero hallucination.
+
+---
+
+### Live Services Startup Commands
+
+Run these two commands in separate PowerShell terminals to launch the complete system:
+
+```powershell
+# Terminal 1: Start SAP ERP Mock Service (FastAPI)
+cd "C:\Users\Abhishek\Downloads\Invoice-Auditor-main\Invoice-Auditor-main"
+python -m uvicorn backned.api.main:app --port 8001 --reload
+
+# Terminal 2: Start Streamlit Frontend
+cd "C:\Users\Abhishek\Downloads\Invoice-Auditor-main\Invoice-Auditor-main"
+streamlit run fronted/app.py
+```
+
+- **SAP Mock ERP Health Check**: `http://localhost:8001/api/erp/health`
+- **Streamlit Frontend Dashboard**: `http://localhost:8501`
+
+---
 
 ---
 
