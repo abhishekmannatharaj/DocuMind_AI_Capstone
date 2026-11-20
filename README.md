@@ -8,6 +8,11 @@ https://github.com/user-attachments/assets/3a9aa479-ab76-47d8-83c3-cb8762617b26
 
 An intelligent document understanding and invoice auditing platform that automates the entire document-processing lifecycle, from extraction and translation to validation, compliance checks, and ERP cross-referencing. It processes documents from PDFs, DOCX files, and scanned images, extracts structured invoice data, validates fields against SAP ERP records (PO & Vendor Master) including Indian GSTIN and INR currency compliance, generates audit reports, and enables users to analyze documents through an AI interface. Built with **LangGraph**, **FastMCP**, **FAISS**, and **Streamlit**, featuring offline/local models and free LLM providers (Ollama, Groq, Gemini).
 
+> ### 🏆 SAP Code Unnati 5.0 Review Documentation (Rubric Aligned)
+> - 📘 **[Enterprise SAP Architecture Specification](docs/SAP_ARCHITECTURE.md)**: Deep dive into SAP S/4HANA (MM/FI), SAP BTP, 3-Way Matching (`EKKO`, `EKPO`, `MSEG`, `RBKP`, `RSEG`), and SAP Data Models.
+> - 🎤 **[Review 1 Presentation Script (100-Mark Rubric)](docs/REVIEW_1_PRESENTATION_SCRIPT.md)**: Turn-by-turn speaking script dividing presentation between **Abhishek Mannatharaj** & **Devika G**.
+> - 🛡️ **[Panel Q&A Defense Guide & Domain Knowledge Sheet](docs/PANEL_QA_DEFENSE_GUIDE.md)**: Anticipated evaluator questions on `MIRO`, BAPIs, tolerances, OCR, and LangGraph vs traditional chains.
+
 ---
 
 ## Table of Contents
