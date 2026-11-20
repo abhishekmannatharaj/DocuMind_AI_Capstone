@@ -52,6 +52,8 @@ def _get_st_model():
     if _st_attempted:
         return _st_model
     _st_attempted = True
+    _st_model = None
+    return None
     allow_download = os.getenv("USE_ONLINE_HF_DOWNLOAD", "false").lower() == "true"
     try:
         from sentence_transformers import SentenceTransformer
