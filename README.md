@@ -1,7 +1,3 @@
-## Demo 
-
-https://github.com/user-attachments/assets/3a9aa479-ab76-47d8-83c3-cb8762617b26
- 
  # DocuMind AI — Intelligent Document Understanding for Invoices, Purchase Orders & Forms
 ### SAP Code Unnati 5.0 Capstone Project
 **Authors:** Abhishek Mannatharaj & Devika G | Dept. of CSE, Gopalan College of Engineering and Management, Bengaluru
