@@ -951,7 +951,14 @@ def page_upload_and_review() -> None:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with open(save_path, "wb") as f:
             f.write(uploaded.getbuffer())
-        st.success(f"File **{uploaded.name}** uploaded successfully to processing inbox.")
+        c_up1, c_up2 = st.columns([5, 1.8])
+        with c_up1:
+            st.success(f"File **{uploaded.name}** uploaded successfully to processing inbox.")
+        with c_up2:
+            if st.button("🔄 Re-process Document", key="btn_reprocess_upload"):
+                st.session_state.pop("uploaded_extracted", None)
+                st.session_state.pop("sap_posting_payload", None)
+                st.rerun()
 
         from backned.services.llm_provider import deterministic_extract_invoice
         from backned.mcp.tools.data_harvester_tool import data_harvester_tool
@@ -985,12 +992,12 @@ def page_upload_and_review() -> None:
                 conf_scores[k] = v if (inv.get(k) or add_fields.get(k)) else 0.0
 
         # Dynamic field extractions
-        extracted_inv_no = inv.get("invoice_no") or ""
+        extracted_inv_no = inv.get("invoice_no") or add_fields.get("bill_no") or add_fields.get("invoice_number") or ""
         extracted_inv_date = inv.get("invoice_date") or datetime.now().strftime("%Y-%m-%d")
         extracted_po_no = inv.get("po_number") or ""
-        extracted_gstin = add_fields.get("gstin") or ""
+        extracted_gstin = add_fields.get("gstin") or add_fields.get("gst_in") or ""
         extracted_vendor_id = inv.get("vendor_id") or ""
-        extracted_vendor_name = inv.get("vendor_name") or ""
+        extracted_vendor_name = inv.get("vendor_name") or add_fields.get("vendor_name") or add_fields.get("company") or ""
         extracted_currency = inv.get("currency") or "INR"
         extracted_total = float(inv.get("total_amount") or 0.0)
 
@@ -1002,10 +1009,10 @@ def page_upload_and_review() -> None:
             ("Invoice No", extracted_inv_no or "— (Not Found)", conf_scores.get("invoice_no", 0.0 if not extracted_inv_no else 0.92)),
             ("Date", extracted_inv_date or "— (Not Found)", conf_scores.get("invoice_date", 0.0 if not extracted_inv_date else 0.90)),
             ("PO Number", extracted_po_no or "— (No PO Reference)", conf_scores.get("po_number", 0.0 if not extracted_po_no else 0.95)),
-            ("Vendor", f"{extracted_vendor_name or '—'} ({extracted_vendor_id or 'Unregistered'})", conf_scores.get("vendor_id", 0.0 if not extracted_vendor_id else 0.95)),
-            ("Currency", extracted_currency or "—", conf_scores.get("currency", 0.0 if not inv.get("currency") else 0.98)),
+            ("Vendor", f"{extracted_vendor_name or '—'} ({extracted_vendor_id or 'Unregistered'})", 0.80 if (extracted_vendor_name and not extracted_vendor_id) else (0.95 if extracted_vendor_id else 0.0)),
+            ("Currency", extracted_currency or "—", conf_scores.get("currency", 0.98 if extracted_currency else 0.0)),
             ("Total Amount", f"{extracted_currency} {extracted_total:,.2f}" if extracted_total else "—", conf_scores.get("total_amount", 0.0 if not extracted_total else 0.95)),
-            ("Indian GSTIN", extracted_gstin or "— (Not Present)", conf_scores.get("gstin", 0.0 if not extracted_gstin else 0.99)),
+            ("Indian GSTIN", extracted_gstin or "— (Not Present)", 0.99 if extracted_gstin else 0.0),
             ("Language", inv.get("detected_language") or "en", 0.99),
         ]
         cols = [c1, c2, c3, c4, c1, c2, c3, c4]

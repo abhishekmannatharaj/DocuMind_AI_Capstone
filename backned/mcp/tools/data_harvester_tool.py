@@ -137,8 +137,10 @@ def data_harvester_tool(
             errors.append(f"Failed to build invoice model: {exc}")
             logger.error("Model build error: %s", exc)
 
-    #  Validate currency is actually present in raw text 
-    if invoice and invoice.currency and raw_text:
+    #  Validate currency is actually present in raw text (or implied by Indian GSTIN)
+    if invoice and invoice.additional_fields.get("gstin"):
+        invoice.currency = "INR"
+    elif invoice and invoice.currency and raw_text:
         invoice.currency = _validate_currency_in_text(
             invoice.currency, raw_text, fp.name
         )
@@ -270,23 +272,60 @@ Rules:
 # 
 
 def _extract_text_from_pdf(file_path: Path) -> str:
-    """Extract raw text from a PDF using pdfplumber."""
+    """Extract raw text from a PDF using pdfplumber, with RapidOCR fallback for scanned PDFs."""
     import pdfplumber
 
     parts: list[str] = []
-    with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
-            parts.append(text)
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                parts.append(text)
 
-            # Also stringify any tables
-            tables = page.extract_tables() or []
-            for tbl in tables:
-                for row in tbl:
-                    if row:
-                        cells = [c if c else "" for c in row]
-                        parts.append(" | ".join(cells))
-    return "\n".join(parts)
+                # Also stringify any tables
+                tables = page.extract_tables() or []
+                for tbl in tables:
+                    for row in tbl:
+                        if row:
+                            cells = [c if c else "" for c in row]
+                            parts.append(" | ".join(cells))
+    except Exception as exc:
+        logger.warning("pdfplumber extraction error on %s: %s", file_path.name, exc)
+
+    extracted = "\n".join(parts).strip()
+    if len(extracted) >= 20:
+        return extracted
+
+    # Scanned PDF fallback: render pages to images and run RapidOCR
+    logger.info("PDF %s contains little or no digital text (%d chars). Falling back to RapidOCR...", file_path.name, len(extracted))
+    return _ocr_pdf_with_rapidocr(file_path)
+
+
+def _ocr_pdf_with_rapidocr(file_path: Path) -> str:
+    """Run RapidOCR on all pages of a scanned PDF via PyMuPDF (fitz)."""
+    try:
+        import io
+        import fitz
+        from PIL import Image
+        from rapidocr_onnxruntime import RapidOCR
+
+        ocr = RapidOCR()
+        doc = fitz.open(str(file_path))
+        lines: list[str] = []
+        for page in doc:
+            pix = page.get_pixmap(dpi=200)
+            img = Image.open(io.BytesIO(pix.tobytes()))
+            result, _ = ocr(img)
+            if result:
+                for box in result:
+                    if len(box) > 1 and box[1]:
+                        lines.append(str(box[1]))
+        ocr_text = "\n".join(lines).strip()
+        logger.info("RapidOCR extracted %d lines from scanned PDF %s", len(lines), file_path.name)
+        return ocr_text
+    except Exception as e:
+        logger.warning("RapidOCR failed on %s: %s", file_path.name, e)
+        return ""
 
 
 def _extract_text_from_docx(file_path: Path) -> str:
@@ -354,18 +393,29 @@ def _parse_with_gpt(raw_text: str, filename: str = "") -> dict:
 # 
 
 def _parse_image_with_gpt_vision(file_path: Path) -> tuple[str, dict]:
-    """Extract text from invoice images via pytesseract/Pillow and parse structured data."""
+    """Extract text from invoice images via RapidOCR / pytesseract and parse structured data."""
     raw_text = ""
-    # 1. Try pytesseract if available
     try:
-        import pytesseract
         from PIL import Image
+        from rapidocr_onnxruntime import RapidOCR
+        ocr = RapidOCR()
         img = Image.open(file_path)
-        raw_text = pytesseract.image_to_string(img)
+        result, _ = ocr(img)
+        if result:
+            raw_text = "\n".join([str(box[1]) for box in result if len(box) > 1 and box[1]])
+            logger.info("RapidOCR extracted %d lines from image %s", len(result), file_path.name)
     except Exception as exc:
-        logger.info("pytesseract OCR skipped or unavailable: %s", exc)
+        logger.info("RapidOCR image extraction fallback: %s", exc)
 
-    # 2. If raw_text is empty, check PIL metadata or filename
+    if not raw_text.strip():
+        try:
+            import pytesseract
+            from PIL import Image
+            img = Image.open(file_path)
+            raw_text = pytesseract.image_to_string(img)
+        except Exception as exc:
+            logger.info("pytesseract OCR skipped or unavailable: %s", exc)
+
     if not raw_text.strip():
         raw_text = f"Scanned Invoice Image: {file_path.name}"
 
@@ -381,30 +431,39 @@ def _dict_to_extracted_invoice(data: dict) -> ExtractedInvoice:
     """Convert the GPT-returned dict into an ExtractedInvoice model."""
     line_items = []
     for li in data.get("line_items", []):
+        qty_val = _safe_float(li.get("qty") or li.get("quantity") or 1.0)
+        price_val = _safe_float(li.get("unit_price") or li.get("price") or 0.0)
+        tot_val = _safe_float(li.get("total") or li.get("amount") or (qty_val * price_val))
         line_items.append(ExtractedLineItem(
-            item_code=li.get("item_code"),
-            description=li.get("description"),
-            qty=_safe_float(li.get("qty")),
-            unit_price=_safe_float(li.get("unit_price")),
-            total=_safe_float(li.get("total")),
+            item_code=li.get("item_code") or "SKU-GEN",
+            description=li.get("description") or li.get("item") or "Goods/Services",
+            qty=qty_val,
+            unit_price=price_val,
+            total=tot_val,
         ))
 
     add_fields = dict(data.get("additional_fields", {}))
     if "confidence_scores" in data:
         add_fields["confidence_scores"] = data["confidence_scores"]
 
+    inv_no = data.get("invoice_no") or add_fields.get("bill_no") or add_fields.get("invoice_number")
+    vend_name = data.get("vendor_name") or add_fields.get("vendor_name")
+    gstin = add_fields.get("gstin") or add_fields.get("gst_in") or data.get("gstin")
+    if gstin:
+        add_fields["gstin"] = str(gstin).strip()
+
     return ExtractedInvoice(
-        invoice_no=data.get("invoice_no"),
+        invoice_no=inv_no,
         invoice_date=data.get("invoice_date"),
         po_number=data.get("po_number"),
         vendor_id=data.get("vendor_id"),
-        vendor_name=data.get("vendor_name"),
-        currency=data.get("currency"),
+        vendor_name=vend_name,
+        currency=data.get("currency") or ("INR" if gstin else None),
         total_amount=_safe_float(data.get("total_amount")),
         tax_amount=_safe_float(data.get("tax_amount")),
-        subtotal=_safe_float(data.get("subtotal")),
+        subtotal=_safe_float(data.get("subtotal") or add_fields.get("sub_total")),
         line_items=line_items,
-        detected_language=data.get("detected_language"),
+        detected_language=data.get("detected_language") or "en",
         additional_fields=add_fields,
     )
 

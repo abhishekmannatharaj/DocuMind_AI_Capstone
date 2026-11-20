@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Settings from environment
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
@@ -224,7 +224,7 @@ def deterministic_extract_invoice(raw_text: str, filename: str = "") -> dict:
     }
 
     # Invoice No
-    inv_match = re.search(r"(?:invoice\s*(?:no|number|#)?|rechnung\s*(?:nr)?|factura\s*(?:n[°o])?)[:\s#]*([A-Za-z0-9_\-\/]+)", text, re.IGNORECASE)
+    inv_match = re.search(r"(?:invoice\s*(?:no|number|#)?|bill\s*(?:no|number|#)?|receipt\s*(?:no|number|#)?|rechnung\s*(?:nr)?|factura\s*(?:n[°o])?)[:\s#]*([A-Za-z0-9_\-\/]+)", text, re.IGNORECASE)
     if inv_match:
         data["invoice_no"] = inv_match.group(1).strip()
         data["confidence_scores"]["invoice_no"] = 0.96
@@ -403,7 +403,7 @@ def deterministic_extract_invoice(raw_text: str, filename: str = "") -> dict:
             ]
 
     # Calculate subtotal, tax, total
-    total_match = re.search(r"(?:total(?:\s*amount)?|gesamtbetrag|montant\s*total)[:\s]*([$€₹£]?\s*[\d,]+\.?\d*)", text, re.IGNORECASE)
+    total_match = re.search(r"(?:grand\s*total|total(?:\s*amount)?|gesamtbetrag|montant\s*total|net\s*amount|balance\s*due)[:\s]*([$€₹£]?\s*[\d,]+\.?\d*)", text, re.IGNORECASE)
     if total_match:
         val = re.sub(r"[^\d.]", "", total_match.group(1))
         if val:
