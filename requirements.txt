@@ -1,0 +1,38 @@
+# ── Core ──────────────────────────────────────────────
+pydantic>=2.0
+langchain-core>=0.3.0
+langgraph>=0.2.0
+
+# ── LLM providers ────────────────────────────────────
+openai
+langchain-openai
+
+# ── Document parsing ─────────────────────────────────
+pdfplumber
+python-docx
+Pillow
+pytesseract
+
+# ── Vector DB / RAG & Local Embeddings ───────────────
+faiss-cpu
+sentence-transformers
+# chromadb
+# qdrant-client
+
+# ── Backend API ──────────────────────────────────────
+fastapi
+uvicorn[standard]
+
+# ── Frontend ─────────────────────────────────────────
+streamlit
+
+# ── Observability ────────────────────────────────────
+langfuse
+
+# ── MCP ──────────────────────────────────────────────
+fastmcp>=2.0
+langchain-mcp-adapters
+
+# ── Utilities ────────────────────────────────────────
+pyyaml
+python-dotenv
