@@ -272,6 +272,22 @@ def deterministic_extract_invoice(raw_text: str, filename: str = "") -> dict:
     if not data["vendor_name"] and data["vendor_id"] in vendor_names:
         data["vendor_name"] = vendor_names[data["vendor_id"]]
         data["confidence_scores"]["vendor_name"] = 0.90
+    elif not data["vendor_name"]:
+        # Extract vendor name from generic invoice patterns (e.g. From:, Seller:, Billed By:)
+        vend_cand = re.search(r"(?:vendor|seller|from|billed\s*by|supplier|company\s*name)[:\s]+([A-Za-z0-9&.,\s\-]{3,50})", text, re.IGNORECASE)
+        if vend_cand:
+            c_name = vend_cand.group(1).split("\n")[0].strip()
+            if len(c_name) >= 3 and not re.search(r"invoice|date|total|tax", c_name, re.IGNORECASE):
+                data["vendor_name"] = c_name
+                data["confidence_scores"]["vendor_name"] = 0.82
+        else:
+            # Check the very top header lines for vendor/company title
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            for l in lines[:3]:
+                if 3 <= len(l) <= 45 and not re.search(r"invoice|date|bill|tax|receipt|order|total|customer|to:", l, re.IGNORECASE):
+                    data["vendor_name"] = l
+                    data["confidence_scores"]["vendor_name"] = 0.72
+                    break
 
     # Invoice Date
     date_match = re.search(r"\b(\d{4}[-/]\d{2}[-/]\d{2}|\d{2}[-/]\d{2}[-/]\d{4}|[A-Za-z]+ \d{1,2},? \d{4}|\d{1,2}\.\d{1,2}\.\d{4})\b", text)

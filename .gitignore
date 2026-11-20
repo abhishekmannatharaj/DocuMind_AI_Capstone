@@ -38,6 +38,12 @@ logs/
 *.swp
 *.swo
 
+# Uploaded incoming test files
+backned/data/incoming/invoices/*
+!backned/data/incoming/invoices/.gitkeep
+backned/rag_store/*.faiss
+backned/rag_store/*.pkl
+
 # OS
 .DS_Store
 Thumbs.db

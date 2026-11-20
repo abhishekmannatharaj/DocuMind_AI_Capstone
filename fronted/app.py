@@ -982,18 +982,30 @@ def page_upload_and_review() -> None:
         }
         for k, v in default_conf.items():
             if k not in conf_scores:
-                conf_scores[k] = v if inv.get(k) or add_fields.get(k) else 0.50
+                conf_scores[k] = v if (inv.get(k) or add_fields.get(k)) else 0.0
+
+        # Dynamic field extractions
+        extracted_inv_no = inv.get("invoice_no") or ""
+        extracted_inv_date = inv.get("invoice_date") or datetime.now().strftime("%Y-%m-%d")
+        extracted_po_no = inv.get("po_number") or ""
+        extracted_gstin = add_fields.get("gstin") or ""
+        extracted_vendor_id = inv.get("vendor_id") or ""
+        extracted_vendor_name = inv.get("vendor_name") or ""
+        extracted_currency = inv.get("currency") or "INR"
+        extracted_total = float(inv.get("total_amount") or 0.0)
+
+        missing_sap_refs = (not extracted_po_no) or (not extracted_vendor_id)
 
         _sec("Per-Field AI Confidence Scores & Quality Check")
         c1, c2, c3, c4 = st.columns(4)
         c_items = [
-            ("Invoice No", inv.get("invoice_no") or "—", conf_scores.get("invoice_no", 0.95)),
-            ("Date", inv.get("invoice_date") or "—", conf_scores.get("invoice_date", 0.94)),
-            ("PO Number", inv.get("po_number") or "—", conf_scores.get("po_number", 0.95)),
-            ("Vendor", f"{inv.get('vendor_name') or '—'} ({inv.get('vendor_id') or '—'})", conf_scores.get("vendor_id", 0.95)),
-            ("Currency", inv.get("currency") or "—", conf_scores.get("currency", 0.98)),
-            ("Total Amount", f"{inv.get('currency') or ''} {inv.get('total_amount') or 0.0}", conf_scores.get("total_amount", 0.95)),
-            ("Indian GSTIN", add_fields.get("gstin") or "29AABCO1234F1Z5", conf_scores.get("gstin", 0.99)),
+            ("Invoice No", extracted_inv_no or "— (Not Found)", conf_scores.get("invoice_no", 0.0 if not extracted_inv_no else 0.92)),
+            ("Date", extracted_inv_date or "— (Not Found)", conf_scores.get("invoice_date", 0.0 if not extracted_inv_date else 0.90)),
+            ("PO Number", extracted_po_no or "— (No PO Reference)", conf_scores.get("po_number", 0.0 if not extracted_po_no else 0.95)),
+            ("Vendor", f"{extracted_vendor_name or '—'} ({extracted_vendor_id or 'Unregistered'})", conf_scores.get("vendor_id", 0.0 if not extracted_vendor_id else 0.95)),
+            ("Currency", extracted_currency or "—", conf_scores.get("currency", 0.0 if not inv.get("currency") else 0.98)),
+            ("Total Amount", f"{extracted_currency} {extracted_total:,.2f}" if extracted_total else "—", conf_scores.get("total_amount", 0.0 if not extracted_total else 0.95)),
+            ("Indian GSTIN", extracted_gstin or "— (Not Present)", conf_scores.get("gstin", 0.0 if not extracted_gstin else 0.99)),
             ("Language", inv.get("detected_language") or "en", 0.99),
         ]
         cols = [c1, c2, c3, c4, c1, c2, c3, c4]
@@ -1006,36 +1018,52 @@ def page_upload_and_review() -> None:
                     f'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:10px;">'
                     f'<div style="font-size:10.5px;color:#64748b;font-weight:600;">{lbl} '
                     f'<span style="background:{badge_color};color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;float:right;">{badge_text} {score_pct}%</span></div>'
-                    f'<div style="font-size:13px;font-weight:700;color:#0f172a;margin-top:4px;">{val}</div>'
+                    f'<div style="font-size:13px;font-weight:700;color:#0f172a;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{val}">{val}</div>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
 
         _sec("Human Review & Field Verification Form")
-        st.info("Review extracted fields before posting to SAP ERP. Modify any flagged values below.")
+        if missing_sap_refs:
+            st.warning("⚠️ **SAP Enterprise Cross-Check**: Document has missing PO reference or unregistered Vendor. In accordance with SAP S/4HANA invoice verification (`MIRO`), manual review is required prior to posting.")
+        else:
+            st.info("Review extracted fields before posting to SAP ERP. Modify any flagged values below.")
 
         with st.form("human_review_form"):
             rf1, rf2 = st.columns(2)
             with rf1:
-                edit_inv_no = st.text_input("Invoice Number", value=str(inv.get("invoice_no") or "INV-2026-001"))
-                edit_inv_date = st.text_input("Invoice Date", value=str(inv.get("invoice_date") or "2026-11-19"))
-                edit_po_no = st.text_input("PO Reference", value=str(inv.get("po_number") or "PO-1006"))
-                edit_gstin = st.text_input("Vendor GSTIN (Indian Compliance)", value=str(add_fields.get("gstin") or "29AABCO1234F1Z5"))
+                edit_inv_no = st.text_input("Invoice Number", value=extracted_inv_no)
+                edit_inv_date = st.text_input("Invoice Date", value=extracted_inv_date)
+                edit_po_no = st.text_input("PO Reference", value=extracted_po_no, help="Assign or correct SAP Purchase Order number.")
+                edit_gstin = st.text_input("Vendor GSTIN (Indian Compliance)", value=extracted_gstin)
             with rf2:
-                edit_vendor_id = st.text_input("Vendor ID", value=str(inv.get("vendor_id") or "VEND-006"))
-                edit_vendor_name = st.text_input("Vendor Name", value=str(inv.get("vendor_name") or "OceanFreight Pvt Ltd"))
-                edit_currency = st.selectbox("Currency", ["INR", "USD", "EUR", "GBP"], index=0 if (inv.get("currency") == "INR") else 1)
-                edit_total = st.number_input("Total Amount", value=float(inv.get("total_amount") or 40000.0), step=10.0)
+                edit_vendor_id = st.text_input("Vendor ID", value=extracted_vendor_id, help="SAP Vendor ID (e.g. VEND-001)")
+                edit_vendor_name = st.text_input("Vendor Name", value=extracted_vendor_name)
+                curr_options = ["INR", "USD", "EUR", "GBP"]
+                curr_idx = curr_options.index(extracted_currency) if extracted_currency in curr_options else 0
+                edit_currency = st.selectbox("Currency", curr_options, index=curr_idx)
+                edit_total = st.number_input("Total Amount", value=float(extracted_total), step=10.0)
 
+            default_dec = "Flag for Auditor Correction" if missing_sap_refs else "Approve for SAP Posting"
+            dec_options = ["Approve for SAP Posting", "Flag for Auditor Correction", "Reject Document"]
             review_decision = st.radio(
                 "Review Decision",
-                ["Approve for SAP Posting", "Flag for Auditor Correction", "Reject Document"],
+                dec_options,
+                index=dec_options.index(default_dec),
                 horizontal=True,
             )
-            reviewer_notes = st.text_input("Reviewer Notes / Justification", value="Verified against SAP PO-1006. Valid Indian GSTIN.")
+            default_notes = (
+                "PO reference or Vendor missing in ERP. Flagged for manual PO assignment."
+                if missing_sap_refs
+                else f"Verified against SAP PO {extracted_po_no} and Vendor {extracted_vendor_id}."
+            )
+            reviewer_notes = st.text_input("Reviewer Notes / Justification", value=default_notes)
             save_clicked = st.form_submit_button("💾 Save Human Review & Prepare SAP Posting", type="primary")
 
         if save_clicked or "sap_posting_payload" in st.session_state:
+            items_to_post = inv.get("line_items") or [
+                {"item_code": "SKU-GEN", "description": extracted_vendor_name or "General Goods/Services", "qty": 1.0, "unit_price": edit_total, "total": edit_total}
+            ]
             sap_payload = {
                 "sap_header": {
                     "sap_system": "SAP ERP Mock Service (PO & Vendor Master)",
@@ -1057,9 +1085,7 @@ def page_upload_and_review() -> None:
                     "audit_timestamp": datetime.now().isoformat(),
                     "source_document": uploaded.name,
                 },
-                "line_items": inv.get("line_items", [
-                    {"item_code": "SKU-501", "description": "Container Transport", "qty": 5.0, "unit_price": 8000.0, "total": 40000.0}
-                ]),
+                "line_items": items_to_post,
                 "confidence_audit": conf_scores,
             }
             st.session_state["sap_posting_payload"] = sap_payload
